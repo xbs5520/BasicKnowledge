@@ -14,18 +14,18 @@
 
 List Processes
 
-![image-01](ProcessAndThreadFundamentals/image-01.png)
+![image-01](Process&&ThreadFundamentals/image-01.png)
 
 PID : process ID
 PPID : parent process ID
 CMD : The command that started the process
 
-![image-02](ProcessAndThreadFundamentals/image-02.png)
+![image-02](Process&&ThreadFundamentals/image-02.png)
 
 Name : process name
 State : Running(R), Sleeping(S), Zombie(Z), Idel(I),etc.
 
-![image-03](ProcessAndThreadFundamentals/image-03.png)
+![image-03](Process&&ThreadFundamentals/image-03.png)
 kill <PID> 
 
 
@@ -46,7 +46,7 @@ Process IDs
 getpid() -> returns current process ID
 getppid() -> returns parent process ID
 
-![image-04](ProcessAndThreadFundamentals/image-04.png)
+![image-04](Process&&ThreadFundamentals/image-04.png)
 
 the child PID is returned to parent, but 0 is returned to the child.
 
@@ -60,7 +60,7 @@ what if change a var in child? is this var in parent process change too?
 No! after change the child var , this var will allocate a new physical memory address. 
 Although it has a same virtual address(which you can print).
 
-![image-05](ProcessAndThreadFundamentals/image-05.png)
+![image-05](Process&&ThreadFundamentals/image-05.png)
 
 In embedded system why might you avoid fork()?
 Embedded system have very limited RAM, so duplicating processes can be wasteful. 
@@ -98,14 +98,14 @@ Rule1: volatile ≠ thread safety
 Rule2: print ≠ synchronization
 
 if you create a thread the pid is same but TID is not.
-![image-06](ProcessAndThreadFundamentals/image-06.png)
+![image-06](Process&&ThreadFundamentals/image-06.png)
 
 if you change a Global var in 2 thread, due to race conditions, you will not get Expected value.
-![image-07](ProcessAndThreadFundamentals/image-07.png)
+![image-07](Process&&ThreadFundamentals/image-07.png)
 
 but if you use mutexlock you will get Expected value.
 
-![image-08](ProcessAndThreadFundamentals/image-08.png)
+![image-08](Process&&ThreadFundamentals/image-08.png)
 
 # Process and Thread
 
@@ -137,11 +137,7 @@ Context switch overhead -- process context switch is heavier.
 
 Failure impact -- a crash in one process usually doesn't kill others, but a bug in one thread can crash the whole process.
 
-
-
-
-
-![image-20250904090120478](ProcessAndThreadFundamentals/image-20250904090120478.png)
+![image-20250904090120478](Process&&ThreadFundamentals/image-20250904090120478.png)
 
 Process case : parent's global_var not affected by child (copy-on-write memory)
 
