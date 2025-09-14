@@ -36,11 +36,11 @@ Potentially flushing caches/TLB(translation lookaside buffer).
 
 context switch time (echo space and throws away the output  switch echo - cat)
 
-![image-20250904100417416](Process Execution Mechanisms/image-20250904100417416.png)
+![image-20250904100417416](ProcessExecutionMechanisms/image-20250904100417416.png)
 
 no context switch time
 
-![image-20250904100518946](Process Execution Mechanisms/image-20250904100518946.png)
+![image-20250904100518946](ProcessExecutionMechanisms/image-20250904100518946.png)
 
 
 
@@ -124,11 +124,7 @@ PR = 20 + NI
 
 **Lower PR/NI get higher priority**
 
-![image-20250906075659132](Process Execution Mechanisms/image-20250906075659132.png)
-
-
-
-
+![image-20250906075659132](ProcessExecutionMechanisms/image-20250906075659132.png)
 
 Scheduling is a **trade-off** between fairness, responsiveness, and throughput.
 
