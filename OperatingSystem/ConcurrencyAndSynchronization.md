@@ -30,7 +30,7 @@ Counting semaphore(allows N threads into a critical section).
 
 Typical use: limit access to a resource pool.
 
-![image-20250911091725303](OperatingSystem/ConcurrencyAndSynchronization/image-20250911091725303.png)
+![image-20250911091725303](ConcurrencyAndSynchronization/image-20250911091725303.png)
 
 Max use is 2 so the third one can get resource until someone release it.
 
