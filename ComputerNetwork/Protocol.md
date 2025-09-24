@@ -437,3 +437,249 @@ HTTP/1.1 → simple, stateless, one request at a time → slower.
 HTTP/2 → multiplexing, header compression → faster.
 
 HTTP/3 → QUIC/UDP → avoids TCP head-of-line blocking, faster in lossy networks.
+
+# DNS & Load Balancing
+
+## Concept
+
+### **DNS(Domain Name System)**
+
+Translates **human-readable names** (e.g., `google.com`) → **IP addresses**.
+
+Layers:
+
+- browser → OS → ISP → recursive resolvers
+
+Hierarchy:
+
+- Root → TLD (`.com`, `.org`) → Authoritative server → Final record.
+
+Common record types:
+
+- `A` (IPv4), `AAAA` (IPv6), `CNAME`, `MX`, `NS`.
+
+Caching is critical for **performance**.
+
+### **Load Balancing**
+
+Needed because one server **can’t handle millions of requests**.
+
+Types:
+
+- **DNS Round Robin**: multiple IPs returned in rotation.
+- **Layer 4 (Transport-level)**: balance based on TCP/UDP.
+- **Layer 7 (Application-level)**: balance based on HTTP headers, URL, cookies, etc.
+
+Algorithms:
+
+- Round Robin 
+
+​		one by one.
+
+- Least Connections
+
+​		Server A has 50 active users, Server B has 20 → new request goes to Server B
+
+- IP Hash (sticky sessions)
+
+​		The client’s **IP address is hashed** to decide which server they go to.
+
+## Q&A
+
+### What happens when you type `www.google.com` into a browser?
+
+DNS resolution(many layer) → TCP/QUIC/UDP connection → TLS Handshake → HTTP request → Server  response → Browser Rendering(show on screen).
+
+### Why does DNS use caching at multiple layers (browser, OS, ISP)?
+
+why multiple layers cache DNS?
+
+Reduce Latency
+
+Reduce Load on DNS Infrastructure
+
+Handle Network Failures
+
+Security & Control 
+
+The Tradeoff → **TTL (Time To Live)**
+
+- Every DNS record has a **TTL value** (e.g., 300s = 5 minutes).
+- Too long TTL → changes (like new IP) propagate slowly.
+- Too short TTL → less caching benefit, more DNS traffic.
+
+**all layers** (browser → OS → ISP → recursive resolvers) strikes a balance between **speed, scalability, and freshness**.
+
+### What’s the trade-off between DNS load balancing vs L4/L7 load balancing?
+
+**DNS Load Balancing** -- DNS server returns multiple IPs for the same domain
+
+**Pros**:
+
+- Simple — no extra infra needed besides DNS.
+- Scales globally
+- Works for all protocols
+
+**Cons**:
+
+- No visibility into server **health**
+- **Slow reaction** → changes take time because of DNS TTL.
+- Coarse-grained - once the client caches an IP, it won’t switch easily even if the server is overloaded.
+
+**L4/L7 Load Balancing** -- A dedicated **load balancer** (software or hardware) sits in front of servers.
+
+**L4**: Balances traffic at transport layer (TCP/UDP ports). Blind to app data.
+
+**L7**: Balances at application layer (HTTP headers, cookies, gRPC, etc.).
+
+**Pros**:
+
+- **Fine-grained control**: Can do sticky sessions, SSL termination, header-based routing.
+- **Health checks**: Can skip dead/slow servers immediately.
+- **Fast reaction**: No DNS TTL delays.
+- **Centralized policies** (rate limiting, security).
+
+**Cons**:
+
+- Extra **infrastructure & cost**.
+- Can become a **bottleneck** or single point of failure if not scaled properly.
+- Slightly more **latency** (one more hop).
+
+**Real-world design**: Many large systems **combine both**:
+
+- **DNS LB** → choose nearest region/datacenter.
+- **L4/L7 LB** → balance across servers inside that region.
+
+### How do CDNs (Cloudflare, Akamai) use DNS + load balancing to reduce latency?
+
+#### **CDN Basics**
+
+- CDNs (Content Delivery Networks) cache content (images, JS, videos) **closer to the user**, in edge servers distributed globally.
+- Goal: reduce **latency** and **server load**.
+
+#### DNS + Geo-Location
+
+When you type `www.example.com`, your browser queries a **CDN-managed DNS**.
+
+The CDN’s DNS returns an IP of an **edge server closest to you**
+
+This is **DNS-based load balancing**, directing users to the optimal location **before traffic even starts**.
+
+#### **L4/L7 Load Balancing at Edge**
+
+- Each edge location has **multiple servers**.
+- The CDN uses **L4/L7 load balancers** to:
+  - Spread traffic evenly across the edge servers.
+  - Handle health checks (skip overloaded/dead servers).
+  - Optionally, apply sticky sessions or route by URL/cookies.
+
+**Summary**:
+
+User → DNS query → CDN DNS → nearest edge IP
+
+Browser connects → L4/L7 load balancer at edge → one of the healthy edge servers
+
+If content is cached → served immediately
+
+If not cached → fetch from origin server, then cache it
+
+**DNS** picks the **right region globally**.
+
+**Load balancer** picks the **right server locally**.
+
+Together → **fast, reliable, and scalable content delivery**.
+
+# NAT, Firewall, and Security
+
+## Conpect
+
+### **NAT (Network Address Translation)**
+
+- Translates **private IPs** (like `192.168.x.x`) → **public IPs** for Internet communication.
+- Types:
+  - **Static NAT**: one-to-one mapping.
+  - **Dynamic NAT / PAT (Port Address Translation)**: many-to-one mapping using ports.
+- **Pros**: Conserves IPv4 addresses, hides internal network structure.
+- **Cons**: Breaks end-to-end connectivity, can complicate peer-to-peer apps.
+
+### **Firewall**
+
+- Controls network traffic based on rules (allow/deny).
+- Types:
+  - **Packet-filtering firewall** (L3/L4): check IP/port.
+  - **Stateful firewall**: track connection states.
+  - **Application firewall** (L7): filter by HTTP headers, URL, etc.
+- Protects network from malicious traffic and enforces policies.
+
+###  **Security Concepts**
+
+- **Confidentiality**: data is only accessible to authorized users.
+- **Integrity**: data cannot be tampered with undetected.
+- **Availability**: services are up and reachable (protection against DDoS).
+- **Authentication & Authorization**:
+  - Auth: Verify identity.
+  - Authz: Check permissions for actions/resources.
+- **TLS/SSL**: encrypts traffic (HTTPS), protects against eavesdropping.
+- **Intrusion Detection / Prevention**: monitors and blocks suspicious activities.
+
+### How They Work Together
+
+1. NAT hides internal IPs, enabling safe Internet access.
+2. Firewall filters bad traffic, both inbound and outbound.
+3. TLS + auth ensures secure communication between endpoints.
+
+## Q&A
+
+### Why does NAT break **incoming** connections?
+
+NAT maps **outbound** connections, but without special rules, **inbound** unsolicited packets are dropped.
+
+### What is the difference between NAT and a firewall?
+
+| Feature     | NAT                                                | Firewall                                             |
+| ----------- | -------------------------------------------------- | ---------------------------------------------------- |
+| Purpose     | Translate private ↔ public IPs                     | Control traffic, enforce security rules              |
+| Layer       | L3/L4 (mostly)                                     | L3/L4 (packet) or L7 (application)                   |
+| Main effect | Hides internal IPs, conserves addresses            | Blocks/permits traffic based on policy               |
+| Example     | Home router mapping `192.168.1.5` → `203.0.113.10` | Block all incoming port 22 except SSH from office IP |
+
+NAT is mainly about **address translation**, firewall is mainly about **traffic filtering**.
+
+### How do PAT and port forwarding work?
+
+**PAT (Port Address Translation):**
+
+- Many private IPs share one public IP.
+- Outbound connections are distinguished by **ports**.
+- E.g., `192.168.1.2:5000` → `203.0.113.10:30000`, `192.168.1.3:5000` → `203.0.113.10:30001`.
+
+**Port forwarding:**
+
+- For **incoming connections**, the router/firewall forwards traffic on a specific port to a specific internal host.
+- E.g., external `203.0.113.10:8080` → internal `192.168.1.5:80`.
+
+### Why does NAT complicate peer-to-peer apps?
+
+NAT breaks **end-to-end connectivity**: peers behind different NATs don’t know each other’s real IP/port.
+
+Direct connection attempts fail unless you use **NAT traversal techniques** (STUN, TURN, UPnP).
+
+### Explain stateful vs stateless firewalls.
+
+| Type      | Description                                                  | Pros                                                | Cons                          |
+| --------- | ------------------------------------------------------------ | --------------------------------------------------- | ----------------------------- |
+| Stateless | Filters packets individually based on rules (IP, port)       | Simple, fast                                        | Cannot track connection state |
+| Stateful  | Tracks connection state (TCP handshake, established sessions) | Can allow return traffic automatically, more secure | Slightly more resource usage  |
+
+### How would you secure a web server against attacks while keeping it reachable?
+
+- **Network layer:**
+  - Use firewall: allow ports 80/443, block all others.
+  - Use NAT if behind private network.
+- **Application layer:**
+  - Use HTTPS (TLS).
+  - Rate-limit requests to prevent DoS/DDoS attacks.
+  - Keep software up to date.
+- **Monitoring:**
+  - IDS/IPS to detect attacks.
+  - Logging & alerts.
