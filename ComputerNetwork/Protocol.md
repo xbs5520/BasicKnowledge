@@ -272,7 +272,7 @@ Example: `192.168.1.0/24` → 256 addresses; `/26` → 64 addresses per subnet.
 - Routers use them to decide **where to forward packets**.
 - Each entry = `(destination network, subnet mask, next hop, interface)`.
 - **Longest prefix match** is used to pick the most specific route.
-- Default route (`0.0.0.0/0`) → catch-all when no specific route exists.
+- Default route (`0.0.0.0/0`) → is used when no specific route exists.
 
 ### **NAT**
 
@@ -290,7 +290,7 @@ ICMP = Internet Control Message Protocol
 - Examples:
   - `ping` → Echo Request / Reply.
   - `traceroute` → Time Exceeded messages.
-- **Not for data transfer**; just control/info.
+- **doesn’t care data transfer**; just for control/infomation.
 
 ### ARP 
 
@@ -300,13 +300,13 @@ ARP = **Address Resolution Protocol**
 - Example: if `192.168.1.100` wants to send a packet, it asks “Who has this IP?” → gets MAC → can send Ethernet frame.
 - IPv6 uses **Neighbor Discovery Protocol (NDP)** instead of ARP.
 
-**Routing**
+### **Routing**
 
 - Routers forward packets based on **destination IP**.
 - Uses **routing tables** and algorithms (RIP, OSPF, BGP).
 - Packet forwarding = **longest prefix match**.
 
-**Fragmentation**
+### **Fragmentation**
 
 - If a packet is bigger than the link MTU(Max trans Unit), IPv4 may fragment it.
 - IPv6 avoids this by requiring end-hosts to handle MTU discovery.
@@ -315,9 +315,9 @@ ARP = **Address Resolution Protocol**
 
 ### Why do we need **logical IP addresses** instead of just MAC addresses?
 
-**MAC address**: tied to the hardware,works only in the **local network (LAN)**. Switches use it.
+**MAC address**: tied to the hardware,works only in the **local network (LAN)**. typically used by Switches.
 
-**Problem**: MACs don’t provide hierarchy. You can’t “aggregate” routes — the internet would need billions of entries.
+**Problem**: MACs don’t provide hierarchical addressing. You can’t scale them for the entrie internet.
 
 **IP address**: logical, hierarchical (network + host). Makes routing scalable, because routers only need prefixes(e.g. `192.168.0.0/16`).
 
@@ -330,9 +330,9 @@ Router checks its **routing table**
 If no entry →
 
 - If there’s a **default route (0.0.0.0/0)**, it forwards the packet there.
-- If no default → router **drops the packet** and usually sends back an **ICMP “Destination Unreachable”**.
+- If no default → router **drops the packet** and usually sends back an **ICMP “Destination Unreachable”** message.
 
-### Compare **IPv4 NAT** vs **IPv6 global addressing**: which do you think is better for scalability?
+### Compare **IPv4 with NAT** vs **IPv6 with global addressing**: which do you think is better for scalability?
 
 **IPv4 + NAT**:
 
@@ -355,19 +355,19 @@ If no entry →
 
 ## Concept
 
-**HTTP (HyperText Transfer Protocol)**
+### **HTTP (HyperText Transfer Protocol)**
 
 - Protocol for **request/response communication** between client (browser) and server.
 - **Stateless**: each request is independent.
 - Common methods: `GET`, `POST`, `PUT`, `DELETE`, `HEAD`.
 
-**HTTPS**
+### **HTTPS**
 
 - HTTP over **TLS/SSL** → encrypts communication. (Use TLS handshake) 	`curl -v https://example.com`
 - Prevents eavesdropping, tampering, and impersonation.
 - Port 443 (HTTPS) vs port 80 (HTTP).
 
-**Application Layer**
+### **Application Layer**
 
 - Top layer in the TCP/IP model.
 - Responsible for **network services** like:
@@ -377,7 +377,7 @@ If no entry →
   - DNS (domain name resolution)
 - Provides **interfaces for user applications** to communicate over network.
 
-**Request/Response Flow**
+### **Request/Response Flow**
 
 - Client sends **HTTP request** → Server processes → Sends **HTTP response**.
 - Response contains **status code**, headers, and optional body.
@@ -506,7 +506,7 @@ The Tradeoff → **TTL (Time To Live)**
 
 - Every DNS record has a **TTL value** (e.g., 300s = 5 minutes).
 - Too long TTL → changes (like new IP) propagate slowly.
-- Too short TTL → less caching benefit, more DNS traffic.
+- Too short TTL → less caching benefit, increase DNS traffic.
 
 **all layers** (browser → OS → ISP → recursive resolvers) strikes a balance between **speed, scalability, and freshness**.
 
@@ -683,3 +683,83 @@ Direct connection attempts fail unless you use **NAT traversal techniques** (STU
 - **Monitoring:**
   - IDS/IPS to detect attacks.
   - Logging & alerts.
+
+# Socket Programming in Depth
+
+## Concept
+
+**What is a socket?**
+
+- An abstraction that lets applications send/receive data across a network.
+- Identified by: `(protocol, local IP, local port, remote IP, remote port)`.
+
+**Types of sockets**
+
+- **Stream sockets (SOCK_STREAM):** TCP, reliable, ordered, connection-oriented.
+- **Datagram sockets (SOCK_DGRAM):** UDP, faster, connectionless, may drop packets.
+- **Raw sockets:** direct access to IP packets (rare, often need root).
+
+**Core system calls (TCP server example)**
+
+- `socket()` → create a socket.
+- `bind()` → assign local IP + port.
+- `listen()` → put into passive (server) mode.
+- `accept()` → accept new client connection (creates new socket).
+- `connect()` → client side connects to server.
+- `send()/recv()` or `write()/read()` → data transfer.
+- `close()` → release socket.
+
+**Blocking vs Non-blocking**
+
+- **Blocking:** `recv()` waits until data arrives.
+- **Non-blocking:** returns immediately (may need polling or `select()`/`epoll()`).
+
+**Multiplexing**
+
+- Handle many connections in one thread.
+- APIs: `select()`, `poll()`, `epoll` (Linux), `kqueue` (BSD/macOS).
+
+## Q&A
+
+### Difference between blocking socket and non-blocking socket. 
+
+- **Blocking socket** (default):
+  - Calls like `recv()` or `accept()` **wait until the operation completes**.
+  - Pros: simple to code.
+  - Cons: one slow client can block the whole thread.
+- **Non-blocking socket**:
+  - Calls return **immediately** if there’s no data or connection.
+  - Pros: you can handle multiple sockets in one thread.
+  - Cons: code is more complex (need `select()`, `poll()`, or `epoll()`).
+
+### Why do servers use `epoll` instead of one thread per connection? 
+
+- Spawning a thread per connection uses a lot of **CPU & memory**.
+- `epoll` (Linux) lets one thread **monitor thousands of sockets** efficiently:
+  - Only wakes up when sockets are **ready for I/O**.
+  - Reduces context switches and memory overhead.
+
+This is all about **scalability** and **performance**.
+
+### Explain the “C10K problem” (handling 10,000 connections). 
+
+- Goal: handle **10,000 concurrent clients**.
+- Problems with naive approach:
+  - 10,000 threads = huge memory + CPU usage.
+  - Context switches kill performance.
+- Solution:
+  - Use **non-blocking I/O + event-driven architecture** (`select`, `poll`, `epoll`).
+  - Efficiently multiplex many connections in **a few threads**.
+
+**TL;DR:** “C10K problem” = scaling servers to handle 10k+ simultaneous clients efficiently.
+
+### How TCP socket states (LISTEN, ESTABLISHED, TIME_WAIT, CLOSE_WAIT) matter.
+
+| State                       | Meaning                                           | Why it matters                                               |
+| --------------------------- | ------------------------------------------------- | ------------------------------------------------------------ |
+| **LISTEN**                  | Server socket waiting for new connections         | Only listens; cannot send/recv data                          |
+| **SYN_SENT / SYN_RECEIVED** | Connection handshake in progress                  | Ensures both sides agree to communicate                      |
+| **ESTABLISHED**             | Connection ready for data transfer                | Normal sending/receiving occurs here                         |
+| **FIN_WAIT1 / FIN_WAIT2**   | Connection is closing (initiated by you)          | Ensures all data is sent before closing                      |
+| **TIME_WAIT**               | Wait to ensure remote received FIN                | Prevents delayed packets from interfering with new connections |
+| **CLOSE_WAIT**              | Remote closed connection, waiting for local close | Server must close to fully release resources                 |
