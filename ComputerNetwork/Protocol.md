@@ -763,3 +763,78 @@ This is all about **scalability** and **performance**.
 | **FIN_WAIT1 / FIN_WAIT2**   | Connection is closing (initiated by you)          | Ensures all data is sent before closing                      |
 | **TIME_WAIT**               | Wait to ensure remote received FIN                | Prevents delayed packets from interfering with new connections |
 | **CLOSE_WAIT**              | Remote closed connection, waiting for local close | Server must close to fully release resources                 |
+
+# CDN & Caching
+
+## Concept
+
+### CDN (Content Delivery Network)
+
+A **CDN** is a network of distributed servers that cache and deliver content (HTML, images, video, JS, CSS) **closer to users**.
+
+**Why CDNs?**
+
+- Reduce **latency** (shorter physical distance).
+- Reduce **server load** (traffic handled by CDN edge nodes).
+- Increase **reliability** (CDN can reroute if one server fails).
+- Handle **traffic spikes** (e.g., Black Friday, live streaming).
+
+👉 Examples: **Cloudflare, Akamai, AWS CloudFront, Fastly**.
+
+### Caching Basics
+
+Caching = storing frequently used data in a **faster location**.
+
+**Levels of Caching**
+
+1. **Browser cache** – stored on user’s machine (static files: JS, CSS).
+2. **CDN cache** – stored at edge servers close to the user.
+3. **Server cache** – in reverse proxy (e.g., Nginx, Varnish).
+4. **Application cache** – in RAM (e.g., Redis, Memcached).
+5. **Database cache** – query results cached to avoid repeated DB hits.
+
+###  Cache Control in HTTP
+
+HTTP headers let you control caching:
+
+- **Cache-Control: max-age=3600** → valid for 1 hour.
+- **ETag** → identifier for resource version.
+- **Last-Modified** → helps with validation.
+
+### Trade-offs
+
+- ✅ Faster response, lower bandwidth.
+- ❌ Risk of **stale data** (must handle invalidation carefully).
+- ❌ Complexity: cache invalidation is “one of the two hardest problems in CS”
+
+## Q&A
+
+### Why do companies use a CDN instead of just scaling up their origin servers?
+
+CDNs reduce latency by serving from edge servers closer to users, offload traffic from origin, provide redundancy, and handle traffic spikes better than a single centralized server.
+
+### How does a CDN know which server should serve a user request?
+
+CDNs use DNS-based load balancing and Anycast routing to direct users to the nearest/least loaded edge node.
+
+### What challenges do CDNs face with dynamic content?
+
+ Dynamic data (e.g., personalized feeds, stock prices) can’t be cached easily. Solutions: edge computing, API caching with short TTL, or cache invalidation on updates.
+
+### What are the trade-offs of caching?
+
+- ✅ Pros: faster response, reduced backend load, cost savings.
+- ❌ Cons: stale data risk, cache invalidation complexity, memory usage.
+
+### How do you decide **what to cache**?
+
+- Cache **static content** (CSS, JS, images).
+- Cache expensive DB queries or API responses.
+- Don’t cache **sensitive data** (passwords, per-user tokens).
+
+### Explain cache eviction policies (LRU, LFU, FIFO). Which one would you use?
+
+- **LRU (Least Recently Used):** evicts items not used recently → good balance.
+- **LFU (Least Frequently Used):** evicts items used least often → good if popularity is stable.
+- **FIFO:** simple, but may evict hot items.
+- Most systems use **LRU** or **LFU** (e.g., Redis supports both).
