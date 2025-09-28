@@ -805,7 +805,7 @@ HTTP headers let you control caching:
 
 - ✅ Faster response, lower bandwidth.
 - ❌ Risk of **stale data** (must handle invalidation carefully).
-- ❌ Complexity: cache invalidation is “one of the two hardest problems in CS”
+- ❌ Complexity: cache invalidation is “one of the two hardest problems in CS” -- joke another is naming things
 
 ## Q&A
 
@@ -838,3 +838,204 @@ CDNs use DNS-based load balancing and Anycast routing to direct users to the nea
 - **LFU (Least Frequently Used):** evicts items used least often → good if popularity is stable.
 - **FIFO:** simple, but may evict hot items.
 - Most systems use **LRU** or **LFU** (e.g., Redis supports both).
+
+# **HTTP/2 & QUIC Performance Analysis**.
+
+## Concept
+
+**HTTP/1.1 vs HTTP/2 vs QUIC**
+
+- **HTTP/1.1:** Each request opens a TCP connection (or limited pipelining). Head-of-line blocking at app layer.
+- **HTTP/2:** Multiplexing multiple streams over one TCP connection → solves app-level HoL blocking, but still suffers from TCP-level packet loss delays.
+- **QUIC (HTTP/3):** Runs on **UDP**, adds:
+  - Stream multiplexing with **independent recovery** (no TCP HoL blocking).
+  - **0-RTT handshakes** for faster connection setup.
+  - **Built-in encryption (TLS 1.3)**.
+  - Faster recovery on lossy networks.
+
+**Why QUIC is faster in practice?**
+
+- Fewer round trips (0-RTT).
+- Better performance on mobile / lossy networks.
+- Lower latency for small requests (e.g., page loads).
+
+**summary**
+
+QUIC shines in **bad networks**.
+
+Userspace QUIC = **flexibility, but CPU cost**.
+
+For global streaming → **QUIC first, TCP fallback**.
+
+## Q&A
+
+### Why might HTTP/3 (QUIC) be faster on WiFi/mobile but not much faster on Ethernet?
+
+**Ethernet (wired):** Stable, low-latency, little packet loss → TCP performs well, so QUIC’s advantages don’t shine.
+
+**WiFi/mobile:** Higher latency, frequent packet loss, roaming between networks → TCP suffers from **head-of-line blocking** (one lost packet stalls everything), but QUIC can recover faster because streams are **independent**.
+ 👉 **So QUIC shines when the network is unreliable.**
+
+### Trade-off of QUIC in userspace (vs TCP in kernel)?
+
+**Pros:**
+
+- Faster evolution: QUIC can be updated in apps/libraries (no kernel updates needed).
+- Built-in encryption → simpler security model.
+- More flexible (e.g., stream priorities, 0-RTT handshakes).
+
+**Cons:**
+
+- **Extra CPU cost**: Encryption + congestion control handled in user space, not kernel.
+- Harder to optimize at OS/hardware level (TCP has decades of kernel-level tuning).
+   👉 **Trade-off = flexibility vs performance overhead.**
+
+### If building global video streaming (YouTube/Netflix), which protocol?
+
+- ✅ **QUIC/HTTP/3** → Best for video:
+  - Lower startup latency (faster play).
+  - Handles mobile/WiFi disruptions better.
+  - Easier rollout of optimizations (since app-level).
+- 🔄 But also keep **TCP fallback** for older devices/networks.
+
+👉 In practice, that’s exactly what YouTube and Netflix do: **prefer QUIC (HTTP/3), fallback to HTTP/2/TCP if not supported.**
+
+# TCP/IP Performance Tuning
+
+## Concept
+
+### Core Performance
+
+**Latency vs Throughput tradeoff** 
+
+small packets = lower latency but higher CPU cost; 
+
+large packets = higher throughput but maybe more delay.
+
+**Bandwidth-Delay Product (BDP)** → determines optimal TCP window size.
+
+- Formula: `BDP = Bandwidth * RTT`
+- Example: 1 Gbps link with 100 ms RTT = `12.5 MB` optimal window size.
+
+**Congestion Control** → algorithms (Reno, Cubic, BBR) change throughput/latency dynamics.
+
+**CPU vs Network bottlenecks** → tuning is useless if CPU scheduling or application logic is the bottleneck.
+
+### Tuning Parameters
+
+**Socket Buffers**
+
+- `SO_SNDBUF` and `SO_RCVBUF` → increase for high-bandwidth links.
+- `net.core.rmem_max`, `net.core.wmem_max` in Linux → system-wide limits.
+
+**TCP Window Scaling**
+
+- Enabled by default (RFC 1323), required for large BDP links.
+
+**Nagle’s Algorithm (`TCP_NODELAY`)**
+
+- Off = aggregate small writes (good for throughput).
+- On = immediate send (good for low latency, e.g., RPC, gaming).
+
+**TCP Congestion Control**
+
+- Check: `sysctl net.ipv4.tcp_congestion_control`
+- Popular: **CUBIC** (default), **BBR** (Google’s high-performance option).
+
+**MTU & MSS Tuning**
+
+- Standard MTU = 1500. Jumbo frames (9000) improve throughput in local networks.
+- Watch for fragmentation → bad for performance.
+
+**TCP Fast Open (TFO)**
+
+- Reduces handshake latency (especially for repeat connections).
+
+**Offloading (NIC features)**
+
+- TSO, LRO, GRO, GSO → let NIC handle segmentation/reassembly.
+
+### Common Bottlenecks
+
+- **High latency on long-haul networks** → need bigger TCP windows, possibly BBR.
+- **Small packet workloads** (chat, RPC) → disable Nagle’s, use UDP/QUIC if better.
+- **Mobile networks** → variable RTT, so congestion control matters a lot.
+- **Server-side tuning** → default Linux buffer sizes are too small for >1 Gbps links.
+
+## Q&A
+
+### Why might increasing the TCP receive buffer size improve throughput?
+
+Larger buffers allow the sender’s congestion window to grow, filling the bandwidth-delay product, avoiding idle links.
+
+### Why might TCP_NODELAY hurt throughput but help latency?
+
+Disables Nagle’s aggregation, so many small packets are sent → higher overhead, but interactive apps benefit.
+
+### If your streaming service lags on high-latency links, what parameters would you tune?
+
+Increase socket buffers, enable window scaling, possibly switch to BBR, and verify MTU is not causing fragmentation.
+
+### Compare BBR vs CUBIC in real-world usage.
+
+ CUBIC: loss-based, conservative in lossy links.
+ BBR: models bandwidth & RTT, can achieve higher throughput on lossy mobile/wifi, but may be unfair in mixed flows.
+
+# Distributed Systems Networking
+
+## Concept
+
+### Basics
+
+- Distributed systems = multiple machines working together (like Google Search, Netflix, or Kubernetes clusters).
+- Networking challenges: **latency, failures, consistency, scalability**.
+- Key idea: Network is not reliable → so systems must **assume failures** and design for recovery.
+
+### Core Concepts
+
+- **RPC (Remote Procedure Call)**
+  - Makes a remote call look like a local function call.
+  - Used in gRPC, Thrift, etc.
+  - Issues: retries, timeouts, idempotency.
+- **Message Passing & Queues**
+  - Kafka, RabbitMQ, SQS for async communication.
+  - Decouples producer & consumer.
+- **Consensus Protocols**
+  - Paxos, Raft → nodes agree on a single truth despite failures.
+  - Example: ensuring only one leader in a cluster.
+
+### Networking Challenges
+
+1. **Latency**: Different nodes may be far apart. Solution: CDNs, caching, replication.
+2. **Packet Loss & Retries**: Must design retry + backoff.
+3. **Partition Tolerance**: CAP theorem says you can’t have **Consistency + Availability** when partition happens.
+4. **Clock Skew**: Machines don’t have the same time → need logical clocks (Lamport, vector clocks).
+
+### Protocols & Patterns
+
+- **gRPC over HTTP/2** → fast, multiplexed RPC.
+- **QUIC in microservices** (some companies exploring it).
+- **Service Mesh** (Istio, Linkerd) → networking for microservices (load balancing, retries, TLS).
+- **Data replication**: leader-follower, quorum reads/writes.
+
+## Q&A
+
+### Why do distributed systems prefer RPC/gRPC over raw sockets?
+
+Easier abstraction, built-in retries, serialization.
+
+### What happens if two nodes think they’re the leader?
+
+Split-brain → must use consensus protocols (Raft, Paxos).
+
+### Why is load balancing harder in distributed systems?
+
+ State may not be shared (sticky sessions needed), data consistency issues.
+
+### How do distributed systems handle unreliable networks?
+
+ Retries, timeouts, replication, idempotent operations.
+
+### What’s the CAP theorem trade-off in real systems?
+
+Most big systems (Cassandra, DynamoDB) prefer AP (availability + partition tolerance) over strong consistency.
