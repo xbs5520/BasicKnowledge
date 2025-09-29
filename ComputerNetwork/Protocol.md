@@ -220,7 +220,7 @@ Used in: DNS, VoIP, video streaming, online games.
 
 ## QUIC
 
-Runs **on top of UDP** (user-space protocol).
+Runs **on top of UDP**  Lives between **Transport** and **Application** layers (sometimes called a “user-space transport protocol）
 
 Designed by Google, now IETF standard.
 
@@ -847,7 +847,7 @@ CDNs use DNS-based load balancing and Anycast routing to direct users to the nea
 
 - **HTTP/1.1:** Each request opens a TCP connection (or limited pipelining). Head-of-line blocking at app layer.
 - **HTTP/2:** Multiplexing multiple streams over one TCP connection → solves app-level HoL blocking, but still suffers from TCP-level packet loss delays.
-- **QUIC (HTTP/3):** Runs on **UDP**, adds:
+- **QUIC (HTTP/3):** Runs on **UDP**, adds: 
   - Stream multiplexing with **independent recovery** (no TCP HoL blocking).
   - **0-RTT handshakes** for faster connection setup.
   - **Built-in encryption (TLS 1.3)**.
@@ -996,7 +996,7 @@ Increase socket buffers, enable window scaling, possibly switch to BBR, and veri
 - **RPC (Remote Procedure Call)**
   - Makes a remote call look like a local function call.
   - Used in gRPC, Thrift, etc.
-  - Issues: retries, timeouts, idempotency.
+  - Issues: retries, timeouts, idempotency(Doing something once or many times gives the same result).
 - **Message Passing & Queues**
   - Kafka, RabbitMQ, SQS for async communication.
   - Decouples producer & consumer.
